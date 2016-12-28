@@ -153,3 +153,28 @@ class HintSVM(QueryStrategy):
         p_val = [abs(float(val[0])) for val in p_val]
         idx = int(np.argmax(p_val))
         return unlabeled_entry_ids[idx]
+
+    def make_queries(self, number):
+        dataset = self.dataset
+        unlabeled_entry_ids, unlabeled_pool = zip(
+            *dataset.get_unlabeled_entries())
+        labeled_pool, y = zip(*dataset.get_labeled_entries())
+
+        hint_pool_idx = self.random_state_.choice(
+            len(unlabeled_pool), int(len(unlabeled_pool) * self.p))
+        hint_pool = np.array(unlabeled_pool)[hint_pool_idx]
+
+        weight = [1.0 for _ in range(len(labeled_pool))] +\
+                 [(self.ch / self.cl) for _ in range(len(hint_pool))]
+        y = list(y) + [0 for _ in range(len(hint_pool))]
+        X = [x.tolist() for x in labeled_pool] +\
+            [x.tolist() for x in hint_pool]
+
+        p_val = hintsvm_query(
+            np.array(X), np.array(y), np.array(weight),
+            np.array([x.tolist() for x in unlabeled_pool]), self.svm_params)
+
+        p_val = [abs(float(val[0])) for val in p_val]
+        idxs = np.argsort(p_val)[::-1][:number]
+        return list(unlabeled_entry_ids[idxs])
+
